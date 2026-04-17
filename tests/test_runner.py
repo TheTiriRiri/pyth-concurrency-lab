@@ -124,3 +124,54 @@ def test_measure_aggregates_child_processes():
     )
     # With 4 children each near 100%, aggregate should comfortably exceed 100%.
     assert m.cpu_percent_avg > 100.0, f"Expected aggregate >100%, got {m.cpu_percent_avg}"
+
+
+def test_measure_n_repeats_writes_all_rows(tmp_csv: Path):
+    m = measure(
+        experiment="t",
+        paradigm="sequential",
+        fn=_sleep_sync,
+        workers=1,
+        n_tasks=1,
+        csv_path=tmp_csv,
+        n_repeats=3,
+        duration=0.01,
+    )
+    rows = load_csv(tmp_csv)
+    assert len(rows) == 3, f"expected 3 rows, got {len(rows)}"
+    repeat_indices = sorted(r.extra["repeat_idx"] for r in rows)
+    assert repeat_indices == [0, 1, 2]
+    # Returned Metrics is the median (one of the written rows).
+    assert m.duration_s in {r.duration_s for r in rows}
+
+
+def test_measure_warmup_not_written_to_csv(tmp_csv: Path):
+    measure(
+        experiment="t",
+        paradigm="sequential",
+        fn=_sleep_sync,
+        workers=1,
+        n_tasks=1,
+        csv_path=tmp_csv,
+        n_repeats=2,
+        warmup=True,
+        duration=0.01,
+    )
+    rows = load_csv(tmp_csv)
+    assert len(rows) == 2  # warmup excluded
+    assert all("warmup" not in r.extra for r in rows)
+
+
+def test_measure_returns_median_duration():
+    # 5 repeats with deterministic increasing sleeps would be flaky; just assert
+    # that returned duration is one of the per-run durations (median semantics).
+    m = measure(
+        experiment="t",
+        paradigm="sequential",
+        fn=_sleep_sync,
+        workers=1,
+        n_tasks=1,
+        n_repeats=5,
+        duration=0.02,
+    )
+    assert m.duration_s >= 0.015

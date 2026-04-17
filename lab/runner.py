@@ -106,26 +106,17 @@ class _Sampler:
         return cpu_avg, self._mem_peak_mb
 
 
-def measure(
+def _measure_once(
     experiment: str,
     paradigm: str,
     fn: Callable,
     workers: int,
     n_tasks: int,
-    csv_path: Path | None = None,
-    sample_interval_s: float = 0.05,
-    **params,
+    sample_interval_s: float,
+    is_coro: bool,
+    params: dict,
 ) -> Metrics:
-    """Run fn(**params) once, returning a Metrics record.
-
-    CPU% and mem_mb_peak are aggregates across parent + live child processes.
-
-    NOTE: If fn is async, any httpx.AsyncClient / aiohttp.ClientSession must be
-    constructed INSIDE fn — each call gets a fresh event loop via asyncio.run().
-    """
-    is_coro = inspect.iscoroutinefunction(fn)
     extra: dict = {}
-
     sampler = _Sampler(sample_interval_s)
     sampler.start()
     start = time.perf_counter()
@@ -134,14 +125,13 @@ def measure(
             asyncio.run(fn(**params))
         else:
             fn(**params)
-        duration = time.perf_counter() - start
-    except Exception as exc:  # noqa: BLE001 — intentional broad catch for lab
+        duration = round(time.perf_counter() - start, 6)
+    except Exception as exc:  # noqa: BLE001
         duration = -1.0
         extra["error"] = f"{type(exc).__name__}: {exc}"
         extra["traceback"] = traceback.format_exc()
     cpu_avg, mem_peak = sampler.stop()
-
-    m = Metrics(
+    return Metrics(
         experiment=experiment,
         paradigm=paradigm,
         workers=workers,
@@ -151,6 +141,45 @@ def measure(
         mem_mb_peak=mem_peak,
         extra=extra,
     )
-    if csv_path is not None:
-        append_csv(csv_path, m)
-    return m
+
+
+def measure(
+    experiment: str,
+    paradigm: str,
+    fn: Callable,
+    workers: int,
+    n_tasks: int,
+    csv_path: Path | None = None,
+    sample_interval_s: float = 0.05,
+    n_repeats: int = 1,
+    warmup: bool = False,
+    **params,
+) -> Metrics:
+    """Run fn(**params) `n_repeats` times, return the median Metrics.
+
+    When `warmup=True`, one un-recorded call precedes the timed repeats to warm
+    caches and JITs. Each recorded run is appended to `csv_path` (if given) as a
+    separate row tagged with `extra["repeat_idx"] = i`.
+
+    NOTE: If fn is async, any httpx.AsyncClient / aiohttp.ClientSession must be
+    constructed INSIDE fn — each call gets a fresh event loop via asyncio.run().
+    """
+    is_coro = inspect.iscoroutinefunction(fn)
+
+    if warmup:
+        _measure_once(experiment, paradigm, fn, workers, n_tasks,
+                      sample_interval_s, is_coro, params)
+
+    results: list[Metrics] = []
+    for i in range(n_repeats):
+        m = _measure_once(experiment, paradigm, fn, workers, n_tasks,
+                          sample_interval_s, is_coro, params)
+        m.extra["repeat_idx"] = i
+        if csv_path is not None:
+            append_csv(csv_path, m)
+        results.append(m)
+
+    # Median by duration; ties broken by lowest index.
+    sorted_by_duration = sorted(results, key=lambda x: x.duration_s)
+    median_idx = len(sorted_by_duration) // 2
+    return sorted_by_duration[median_idx]
