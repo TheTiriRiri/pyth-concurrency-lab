@@ -1,0 +1,13 @@
+experiment,paradigm,workers,n_tasks,duration_s,cpu_percent_avg,mem_mb_peak,extra_json
+03_io_disk,sequential,1,200,0.018204,154.800,72.020,"{""repeat_idx"": 0}"
+03_io_disk,sequential,1,200,0.021299,220.900,72.020,"{""repeat_idx"": 1}"
+03_io_disk,sequential,1,200,0.024118,188.200,72.023,"{""repeat_idx"": 2}"
+03_io_disk,threading,16,200,0.060411,234.700,87.730,"{""repeat_idx"": 0}"
+03_io_disk,threading,16,200,0.066002,259.100,87.734,"{""repeat_idx"": 1}"
+03_io_disk,threading,16,200,0.060390,225.700,87.766,"{""repeat_idx"": 2}"
+03_io_disk,multiprocessing,16,200,0.063930,113.800,87.723,"{""repeat_idx"": 0}"
+03_io_disk,multiprocessing,16,200,0.074936,107.500,87.738,"{""repeat_idx"": 1}"
+03_io_disk,multiprocessing,16,200,0.095226,118.000,87.754,"{""repeat_idx"": 2}"
+03_io_disk,asyncio,16,200,0.089509,402.600,76.918,"{""repeat_idx"": 0}"
+03_io_disk,asyncio,16,200,0.133577,380.500,76.977,"{""repeat_idx"": 1}"
+03_io_disk,asyncio,16,200,0.127776,436.000,76.953,"{""repeat_idx"": 2}"

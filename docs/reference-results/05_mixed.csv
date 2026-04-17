@@ -1,0 +1,13 @@
+experiment,paradigm,workers,n_tasks,duration_s,cpu_percent_avg,mem_mb_peak,extra_json
+05_mixed,threading,8,50,16.075523,576.933,103.730,"{""repeat_idx"": 0}"
+05_mixed,threading,8,50,15.802002,556.300,104.465,"{""repeat_idx"": 1}"
+05_mixed,threading,8,50,15.945982,572.967,105.113,"{""repeat_idx"": 2}"
+05_mixed,multiprocessing,8,50,1.871252,753.917,856.828,"{""repeat_idx"": 0}"
+05_mixed,multiprocessing,8,50,1.932548,771.335,866.367,"{""repeat_idx"": 1}"
+05_mixed,multiprocessing,8,50,1.950983,762.000,867.594,"{""repeat_idx"": 2}"
+05_mixed,asyncio (blocking hash),8,50,10.606132,161.100,112.430,"{""repeat_idx"": 0}"
+05_mixed,asyncio (blocking hash),8,50,10.920054,103.567,112.910,"{""repeat_idx"": 1}"
+05_mixed,asyncio (blocking hash),8,50,10.782545,117.833,112.910,"{""repeat_idx"": 2}"
+05_mixed,asyncio + executor,8,50,1.888531,741.018,855.129,"{""repeat_idx"": 0}"
+05_mixed,asyncio + executor,8,50,1.869510,731.567,860.273,"{""repeat_idx"": 1}"
+05_mixed,asyncio + executor,8,50,1.893417,754.567,860.980,"{""repeat_idx"": 2}"
