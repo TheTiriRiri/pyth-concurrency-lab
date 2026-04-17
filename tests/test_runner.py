@@ -75,3 +75,52 @@ def test_measure_records_failure_without_raising(tmp_csv: Path):
     rows = load_csv(tmp_csv)
     assert len(rows) == 1
     assert rows[0].duration_s == -1.0
+
+
+def _burn_cpu(iterations: int, **_):
+    n = 0
+    for i in range(iterations):
+        n += i * i
+    return n
+
+
+def test_measure_reports_nonzero_cpu_for_busy_loop():
+    m = measure(
+        experiment="t",
+        paradigm="sequential",
+        fn=_burn_cpu,
+        workers=1,
+        n_tasks=1,
+        iterations=5_000_000,
+    )
+    assert m.cpu_percent_avg > 10.0, f"CPU too low: {m.cpu_percent_avg}"
+    assert m.mem_mb_peak > 0.0
+
+
+from concurrent.futures import ProcessPoolExecutor
+
+
+def _mp_burn(iterations: int, **_):
+    # Top-level so the Pool can pickle it.
+    with ProcessPoolExecutor(max_workers=4) as pool:
+        list(pool.map(_burn_cpu_pool, [iterations] * 4))
+
+
+def _burn_cpu_pool(iterations):
+    n = 0
+    for i in range(iterations):
+        n += i * i
+    return n
+
+
+def test_measure_aggregates_child_processes():
+    m = measure(
+        experiment="t",
+        paradigm="multiprocessing",
+        fn=_mp_burn,
+        workers=4,
+        n_tasks=4,
+        iterations=20_000_000,
+    )
+    # With 4 children each near 100%, aggregate should comfortably exceed 100%.
+    assert m.cpu_percent_avg > 100.0, f"Expected aggregate >100%, got {m.cpu_percent_avg}"
