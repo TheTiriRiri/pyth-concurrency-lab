@@ -1500,9 +1500,13 @@ class MockServer:
         await self._runner.setup()
         site = web.TCPSite(self._runner, "127.0.0.1", self.port)
         await site.start()
+
+        # CREATE THE FUTURE BEFORE signalling readiness — otherwise __exit__
+        # can race past _ready.wait() and see _stop_request is None, leaking
+        # the server thread.
+        self._stop_request = asyncio.get_running_loop().create_future()
         self._ready.set()
 
-        self._stop_request = asyncio.get_running_loop().create_future()
         try:
             await self._stop_request
         finally:
@@ -1607,10 +1611,21 @@ def run_sequential(**_):
             fetch_url_sync(client, _url())
 
 
+# Per-process httpx.Client so each worker amortises connection setup across
+# its calls — symmetric to the single shared client used in run_threading.
+# Without this, multiprocessing would pay a fresh TCP handshake per request
+# and the comparison against threading would be unfair.
+_WORKER_CLIENT: httpx.Client | None = None
+
+
+def _proc_init() -> None:
+    global _WORKER_CLIENT
+    _WORKER_CLIENT = httpx.Client(timeout=30)
+
+
 def _fetch_worker(url: str) -> int:
-    # Top-level so ProcessPoolExecutor can pickle it.
-    with httpx.Client(timeout=30) as client:
-        return fetch_url_sync(client, url)
+    assert _WORKER_CLIENT is not None, "ProcessPoolExecutor must use _proc_init"
+    return fetch_url_sync(_WORKER_CLIENT, url)
 
 
 def run_threading(workers: int, **_):
@@ -1620,7 +1635,7 @@ def run_threading(workers: int, **_):
 
 
 def run_multiprocessing(workers: int, **_):
-    with ProcessPoolExecutor(max_workers=workers) as pool:
+    with ProcessPoolExecutor(max_workers=workers, initializer=_proc_init) as pool:
         list(pool.map(_fetch_worker, [_url()] * N_REQUESTS))
 
 
